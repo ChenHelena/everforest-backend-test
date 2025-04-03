@@ -1,0 +1,43 @@
+version: "3.8"
+volumes:
+  pgData:
+services:
+  postgres:
+    image: postgres:16.4-alpine3.20
+    environment:
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_DATABASE}
+    volumes:
+      - pgData:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    networks:
+      - everforest_network_test
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}'"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  backend:
+    build:
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - 8081:8080
+    networks:
+      - everforest_network_test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on: #「backend 要等 postgres(container)有啟動啟動完再啟動」
+      #確保 PostgreSQL 容器會比 backend 更早啟動（但不保證「DB已準備好」→ 如果你要保證，可以用 wait-for-it.sh 等技巧）
+      - postgres
+    volumes:
+      - .:/app # 把專案掛進容器（才能即時看見程式碼改動）
+      - /app/node_modules # 避免 node_modules 被蓋掉
+networks:
+  everforest_network_test:
